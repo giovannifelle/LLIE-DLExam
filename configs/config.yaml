@@ -1,0 +1,42 @@
+experiment:
+  name: baseline
+  seed: 42
+
+data:
+  train_dataset: LOL-v2
+  val_dataset: LOL-v2
+  test_datasets:
+    - LOL-v2
+    - LOL-v1
+    - ExDark
+
+  image_size: 256
+  batch_size: 8
+  num_workers: 4
+
+model:
+  name: UNet
+  in_channels: 3
+  out_channels: 3
+  base_features: 32
+
+training:
+  epochs: 100
+  optimizer: AdamW
+  lr: 0.0001
+  weight_decay: 0.00001
+  early_stopping_patience: 10
+  mixed_precision: true
+
+loss:
+  l1_weight: 1.0
+  ssim_weight: 0.2
+
+augmentation: true
+
+evaluation:
+  metrics:
+    - PSNR
+    - SSIM
+    - NIQE
+    - BRISQUE
