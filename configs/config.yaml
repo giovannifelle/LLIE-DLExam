@@ -3,6 +3,8 @@ experiment:
   seed: 42
 
 data:
+  raw_dir: data/raw
+  splits_dir: data/splits
   train_dataset: LOL-v2
   val_dataset: LOL-v2
   test_datasets:
@@ -13,6 +15,8 @@ data:
   image_size: 256
   batch_size: 8
   num_workers: 4
+  val_fraction: 0.15
+  exdark_samples_per_category: 10
 
 model:
   name: UNet
@@ -32,7 +36,12 @@ loss:
   l1_weight: 1.0
   ssim_weight: 0.2
 
-augmentation: true
+augmentation:
+  enabled: true
+  crop_padding: 32
+  horizontal_flip_probability: 0.5
+  brightness: 0.0
+  contrast: 0.0
 
 evaluation:
   metrics:
