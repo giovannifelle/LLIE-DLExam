@@ -22,6 +22,8 @@ class LOLv2Dataset(BaseDataset):
             low_paths = self.list_images(self.root / "Test" / "Low")
             self.sample_ids = [path.stem.removeprefix("low") for path in low_paths]
             self.data_dir = self.root / "Test"
+            print(f"LOL-v2 test low paths: {len(low_paths)}")
+            print(f"LOL-v2 test sample IDs: {len(self.sample_ids)}")
         else:
             raise ValueError(f"Unsupported LOL-v2 split: {split}")
 
@@ -32,6 +34,8 @@ class LOLv2Dataset(BaseDataset):
             )
             for sample_id in self.sample_ids
         ]
+        if split == "test":
+            print(f"LOL-v2 test pairs: {len(self.samples)}")
         self._validate_pairs()
 
     def _validate_pairs(self):

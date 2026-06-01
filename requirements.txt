@@ -1,0 +1,8 @@
+# Core training and preprocessing
+torch>=2.0
+numpy>=1.23
+Pillow>=9.0
+PyYAML>=6.0
+
+# No-reference image quality metrics: NIQE and BRISQUE
+pyiqa>=0.1.13
