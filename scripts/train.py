@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.datasets import LOLv2Dataset
 from src.evaluation import Evaluator, MetricCalculator
 from src.losses import CombinedLoss
-from src.models import UNet
+from src.models import ResidualUNet, UNet
 from src.preprocessing import build_transforms
 from src.training import Trainer
 
@@ -139,14 +139,24 @@ def select_device():
 
 def build_model(config):
     model_config = config["model"]
-    if model_config["name"] != "UNet":
-        raise ValueError(f"Unsupported model: {model_config['name']}")
+    model_name = model_config["name"]
+    print(f"Using model: {model_name}")
 
-    return UNet(
-        in_channels=model_config["in_channels"],
-        out_channels=model_config["out_channels"],
-        base_features=model_config["base_features"],
-    )
+    if model_name == "UNet":
+        return UNet(
+            in_channels=model_config["in_channels"],
+            out_channels=model_config["out_channels"],
+            base_features=model_config["base_features"],
+        )
+
+    if model_name == "ResidualUNet":
+        return ResidualUNet(
+            in_channels=model_config["in_channels"],
+            out_channels=model_config["out_channels"],
+            base_features=model_config["base_features"],
+        )
+
+    raise ValueError(f"Unsupported model: {model_name}")
 
 
 def build_optimizer(config, model):

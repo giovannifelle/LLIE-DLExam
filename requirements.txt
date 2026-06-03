@@ -4,6 +4,7 @@ numpy>=1.23
 Pillow>=9.0
 PyYAML>=6.0
 tqdm>=4.66
+matplotlib>=3.7
 
 # No-reference image quality metrics: NIQE and BRISQUE
 pyiqa>=0.1.13

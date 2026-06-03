@@ -31,7 +31,8 @@ def main():
     dataloader_generator = build_dataloader_generator(seed)
     device = select_device()
     print(f"Using device: {device}")
-    model = load_model(config, args.checkpoint, device)
+    checkpoint_path = resolve_checkpoint_path(config, args.checkpoint)
+    model = load_model(config, checkpoint_path, device)
     datasets = build_test_datasets(config)
     output_dir = (
         Path(args.output_dir)
@@ -76,9 +77,15 @@ def main():
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate a trained enhancement model.")
     parser.add_argument("--config", default="configs/config.yaml")
-    parser.add_argument("--checkpoint", default="outputs/baseline/best_model.pt")
+    parser.add_argument("--checkpoint", default=None)
     parser.add_argument("--output-dir", default=None)
     return parser.parse_args()
+
+
+def resolve_checkpoint_path(config, checkpoint_path):
+    if checkpoint_path:
+        return Path(checkpoint_path)
+    return Path("outputs") / config["experiment"]["name"] / "best_model.pt"
 
 
 def load_model(config, checkpoint_path, device):
