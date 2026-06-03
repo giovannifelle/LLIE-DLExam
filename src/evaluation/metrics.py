@@ -43,7 +43,8 @@ def calculate_ssim(prediction, target, window_size=11, data_range=1.0):
         mean_prediction**2 + mean_target**2 + c1
     ) * (prediction_variance + target_variance + c2)
 
-    return torch.clamp((numerator / denominator).mean(), 0.0, 1.0)
+    ssim_per_image = (numerator / denominator).mean(dim=(1, 2, 3))
+    return torch.clamp(ssim_per_image, 0.0, 1.0).mean()
 
 
 class MetricCalculator:
@@ -67,10 +68,11 @@ class MetricCalculator:
     def from_config(cls, config, device="cpu"):
         return cls(config["evaluation"]["metrics"], device=device)
 
-    def calculate(self, prediction, target=None):
+    def calculate(self, prediction, target=None, input_image=None):
         """Return available scores for a batch of enhanced images."""
         prediction = prediction.to(self.device)
         target = target.to(self.device) if target is not None else None
+        input_image = input_image.to(self.device) if input_image is not None else None
         scores = {}
 
         # Paired datasets use PSNR and SSIM when a target is available.
@@ -82,9 +84,19 @@ class MetricCalculator:
                 scores["SSIM"] = calculate_ssim(prediction, target).item()
             elif metric_name in self.NO_REFERENCE_METRICS:
                 metric = self._get_no_reference_metric(metric_name)
-                scores[metric_name] = metric(
+                prediction_score = metric(
                     prediction.to(self.no_reference_device)
-                ).mean().item()
+                ).mean()
+                scores[metric_name] = prediction_score.item()
+
+                if input_image is not None:
+                    input_score = metric(
+                        input_image.to(self.no_reference_device)
+                    ).mean()
+                    scores[f"{metric_name}_input"] = input_score.item()
+                    scores[f"{metric_name}_delta"] = (
+                        prediction_score - input_score
+                    ).item()
 
         return scores
 

@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 import torch
+from tqdm.auto import tqdm
 
 
 class Evaluator:
@@ -13,21 +14,23 @@ class Evaluator:
         self.device = torch.device(device)
         self.loss_function = loss_function
 
-    def evaluate_paired(self):
+    def evaluate_paired(self, progress_description=None):
         """Evaluate images with a normal-light ground truth using reference metrics."""
         return self._evaluate(
             input_key="low",
             target_key="high",
+            progress_description=progress_description,
         )
 
-    def evaluate_unpaired(self):
+    def evaluate_unpaired(self, progress_description=None):
         """Evaluate images without ground truth using no-reference metrics."""
         return self._evaluate(
             input_key="image",
             target_key=None,
+            progress_description=progress_description,
         )
 
-    def _evaluate(self, input_key, target_key):
+    def _evaluate(self, input_key, target_key, progress_description=None):
         self.model.to(self.device)
 
         # Evaluation mode disables training behavior such as dropout updates.
@@ -37,7 +40,14 @@ class Evaluator:
 
         # Gradients are not needed during validation or test evaluation.
         with torch.inference_mode():
-            for batch in self.dataloader:
+            progress = tqdm(
+                self.dataloader,
+                desc=progress_description,
+                leave=False,
+                dynamic_ncols=True,
+                disable=progress_description is None,
+            )
+            for batch in progress:
                 inputs = batch[input_key].to(self.device)
                 targets = batch[target_key].to(self.device) if target_key else None
                 predictions = self.model(inputs)
@@ -47,6 +57,7 @@ class Evaluator:
                 scores = self.metric_calculator.calculate(
                     predictions,
                     targets,
+                    inputs,
                 )
                 for metric_name, value in scores.items():
                     # Weighted sums give correct averages when the last batch is smaller.
@@ -58,6 +69,10 @@ class Evaluator:
                     metric_totals["loss"] += loss.item() * batch_size
 
                 sample_count += batch_size
+                if "loss" in metric_totals:
+                    progress.set_postfix(
+                        loss=f"{metric_totals['loss'] / sample_count:.4f}"
+                    )
 
         if sample_count == 0:
             raise ValueError("Cannot evaluate an empty dataloader")

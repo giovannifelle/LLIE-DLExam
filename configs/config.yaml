@@ -14,7 +14,7 @@ data:
 
   image_size: 256
   batch_size: 8
-  num_workers: 4
+  num_workers: 0
   val_fraction: 0.15
   exdark_samples_per_category: 10
 
@@ -27,21 +27,21 @@ model:
 training:
   epochs: 100
   optimizer: AdamW
-  lr: 0.0001
+  lr: 0.0003
   weight_decay: 0.00001
   early_stopping_patience: 10
-  mixed_precision: true
+  mixed_precision: auto
 
 loss:
-  l1_weight: 1.0
-  ssim_weight: 0.2
+  l1_weight: 0.8
+  ssim_weight: 0.3
 
 augmentation:
   enabled: true
   crop_padding: 32
   horizontal_flip_probability: 0.5
-  brightness: 0.0
-  contrast: 0.0
+  brightness: 0.08
+  contrast: 0.08
 
 evaluation:
   metrics:

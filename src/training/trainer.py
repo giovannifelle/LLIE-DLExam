@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import torch
+from tqdm.auto import tqdm
 
 
 class Trainer:
@@ -29,9 +30,7 @@ class Trainer:
         self.early_stopping_patience = early_stopping_patience
         self.checkpoint_path = Path(checkpoint_path) if checkpoint_path else None
 
-        # Mixed precision can reduce memory usage and training time on CUDA GPUs.
-        # The standard path is kept for CPU and MPS to avoid device-specific issues.
-        self.mixed_precision = mixed_precision and self.device.type == "cuda"
+        self.mixed_precision = resolve_mixed_precision(mixed_precision, self.device)
         self.scaler = torch.amp.GradScaler(
             self.device.type,
             enabled=self.mixed_precision,
@@ -44,11 +43,25 @@ class Trainer:
         best_val_loss = float("inf")
         epochs_without_improvement = 0
 
-        for epoch in range(1, self.epochs + 1):
-            train_loss = self._train_epoch()
+        print(
+            "Mixed precision: "
+            f"{'enabled' if self.mixed_precision else 'disabled'} "
+            f"(device: {self.device.type})"
+        )
+
+        epoch_progress = tqdm(
+            range(1, self.epochs + 1),
+            desc="Epochs",
+            unit="epoch",
+            dynamic_ncols=True,
+        )
+        for epoch in epoch_progress:
+            train_loss = self._train_epoch(epoch)
 
             # Validation is delegated to Evaluator to keep metric logic outside Trainer.
-            val_metrics = self.evaluator.evaluate_paired()
+            val_metrics = self.evaluator.evaluate_paired(
+                progress_description=f"Val   {epoch}/{self.epochs}"
+            )
             val_loss = val_metrics.get("loss")
 
             epoch_results = {
@@ -58,6 +71,10 @@ class Trainer:
             }
 
             self._print_epoch_summary(epoch_results)
+            epoch_progress.set_postfix(
+                train_loss=f"{train_loss:.4f}",
+                val_loss=f"{val_loss:.4f}" if val_loss is not None else "n/a",
+            )
 
             history.append(epoch_results)
 
@@ -78,12 +95,18 @@ class Trainer:
 
         return history
 
-    def _train_epoch(self):
+    def _train_epoch(self, epoch):
         self.model.train()
         total_loss = 0.0
         sample_count = 0
 
-        for batch in self.train_dataloader:
+        progress = tqdm(
+            self.train_dataloader,
+            desc=f"Train {epoch}/{self.epochs}",
+            leave=False,
+            dynamic_ncols=True,
+        )
+        for batch in progress:
             # Training datasets return paired low-light and normal-light images.
             low_images = batch["low"].to(self.device)
             high_images = batch["high"].to(self.device)
@@ -104,6 +127,10 @@ class Trainer:
             # Weighting by batch size handles a smaller final batch correctly.
             total_loss += loss.item() * batch_size
             sample_count += batch_size
+            progress.set_postfix(
+                loss=f"{loss.item():.4f}",
+                avg=f"{total_loss / sample_count:.4f}",
+            )
 
         if sample_count == 0:
             raise ValueError("Cannot train with an empty dataloader")
@@ -132,14 +159,34 @@ class Trainer:
         )
 
     def _print_epoch_summary(self, results):
-        print(f"\nEpoch {results['epoch']}")
-        print(f"\nTrain Loss: {results['train_loss']:.4f}")
+        parts = [
+            f"Epoch {results['epoch']}/{self.epochs}",
+            f"train_loss={results['train_loss']:.4f}",
+        ]
 
         if "val_loss" in results:
-            print(f"Val Loss:   {results['val_loss']:.4f}")
+            parts.append(f"val_loss={results['val_loss']:.4f}")
 
         if "val_psnr" in results:
-            print(f"Val PSNR:   {results['val_psnr']:.2f}")
+            parts.append(f"val_psnr={results['val_psnr']:.2f}")
 
         if "val_ssim" in results:
-            print(f"Val SSIM:   {results['val_ssim']:.4f}")
+            parts.append(f"val_ssim={results['val_ssim']:.4f}")
+
+        print(" | ".join(parts))
+
+
+def resolve_mixed_precision(value, device):
+    """Enable mixed precision automatically only where it is reliable."""
+    device = torch.device(device)
+    if isinstance(value, str):
+        normalized_value = value.strip().lower()
+        if normalized_value == "auto":
+            return device.type == "cuda"
+        if normalized_value in {"true", "yes", "1"}:
+            return device.type == "cuda"
+        if normalized_value in {"false", "no", "0"}:
+            return False
+        raise ValueError(f"Unsupported mixed_precision value: {value}")
+
+    return bool(value) and device.type == "cuda"

@@ -55,7 +55,6 @@ def parse_args():
     parser.add_argument("--config", default="configs/config.yaml")
     parser.add_argument("--checkpoint", default="outputs/baseline/best_model.pt")
     parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--examples", type=int, default=None)
     return parser.parse_args()
 
 

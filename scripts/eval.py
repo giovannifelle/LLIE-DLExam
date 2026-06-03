@@ -9,7 +9,13 @@ from torch.utils.data import DataLoader
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.train import build_model, select_device
+from scripts.train import (
+    build_dataloader_generator,
+    build_model,
+    seed_worker,
+    select_device,
+    set_seed,
+)
 from src.datasets import ExDarkDataset, LOLv1Dataset, LOLv2Dataset
 from src.evaluation import Evaluator, MetricCalculator
 from src.preprocessing import build_transforms
@@ -20,6 +26,9 @@ def main():
     with Path(args.config).open() as config_file:
         config = yaml.safe_load(config_file)
 
+    seed = config["experiment"]["seed"]
+    set_seed(seed)
+    dataloader_generator = build_dataloader_generator(seed)
     device = select_device()
     print(f"Using device: {device}")
     model = load_model(config, args.checkpoint, device)
@@ -47,6 +56,8 @@ def main():
             batch_size=config["data"]["batch_size"],
             shuffle=False,
             num_workers=config["data"]["num_workers"],
+            worker_init_fn=seed_worker,
+            generator=dataloader_generator,
         )
         evaluator = Evaluator(
             model=model,

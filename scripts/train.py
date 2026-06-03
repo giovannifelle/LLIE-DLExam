@@ -24,6 +24,7 @@ def main():
 
     seed = config["experiment"]["seed"]
     set_seed(seed)
+    dataloader_generator = build_dataloader_generator(seed)
     device = select_device()
     print(f"Using device: {device}")
 
@@ -51,12 +52,16 @@ def main():
         batch_size=data_config["batch_size"],
         shuffle=True,
         num_workers=data_config["num_workers"],
+        worker_init_fn=seed_worker,
+        generator=dataloader_generator,
     )
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=data_config["batch_size"],
         shuffle=False,
         num_workers=data_config["num_workers"],
+        worker_init_fn=seed_worker,
+        generator=dataloader_generator,
     )
     print(f"Dataset sizes: {len(train_dataset)} train, {len(val_dataset)} val")
 
@@ -99,6 +104,28 @@ def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+    try:
+        torch.use_deterministic_algorithms(True)
+    except RuntimeError as error:
+        print(f"Warning: deterministic algorithms could not be enabled: {error}")
+
+
+def seed_worker(worker_id):
+    """Seed each DataLoader worker from PyTorch's worker-specific seed."""
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+def build_dataloader_generator(seed):
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    return generator
 
 
 def select_device():
