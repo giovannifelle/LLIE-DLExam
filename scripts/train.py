@@ -69,6 +69,7 @@ def main():
     loss_function = CombinedLoss(
         l1_weight=config["loss"]["l1_weight"],
         ssim_weight=config["loss"]["ssim_weight"],
+        color_weight=config["loss"].get("color_weight", 0.0),
     )
     optimizer = build_optimizer(config, model)
 

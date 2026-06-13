@@ -1,5 +1,5 @@
 experiment:
-  name: baseline
+  name: baseline_color_loss
   seed: 42
 
 data:
@@ -35,6 +35,7 @@ training:
 loss:
   l1_weight: 0.8
   ssim_weight: 0.3
+  color_weight: 0.05
 
 augmentation:
   enabled: true
