@@ -7,8 +7,8 @@ def calculate_psnr(prediction, target, data_range=1.0):
     _check_matching_shapes(prediction, target)
     mse = torch.mean((prediction - target) ** 2, dim=(1, 2, 3))
 
-    # PSNR is computed per image before averaging the batch.
-    # Identical images have an infinite value because their MSE is zero.
+    # Compute PSNR for each image first, then average the batch score.
+    # If two images are identical, their MSE is zero and PSNR is infinite.
     psnr = torch.where(
         mse == 0,
         torch.tensor(float("inf"), device=mse.device),
@@ -24,7 +24,7 @@ def calculate_ssim(prediction, target, window_size=11, data_range=1.0):
     c1 = (0.01 * data_range) ** 2
     c2 = (0.03 * data_range) ** 2
 
-    # Local statistics compare image structure inside a small moving window.
+    # SSIM compares local luminance, contrast, and structure in a moving window.
     mean_prediction = _local_average(prediction, window_size, padding)
     mean_target = _local_average(target, window_size, padding)
     prediction_variance = (
@@ -75,8 +75,8 @@ class MetricCalculator:
         input_image = input_image.to(self.device) if input_image is not None else None
         scores = {}
 
-        # Paired datasets use PSNR and SSIM when a target is available.
-        # No-reference metrics can also be computed on paired test datasets.
+        # Full-reference metrics are skipped automatically when no target exists.
+        # No-reference metrics can be used for both paired and unpaired datasets.
         for metric_name in self.metric_names:
             if metric_name == "PSNR" and target is not None:
                 scores["PSNR"] = calculate_psnr(prediction, target).item()
@@ -101,8 +101,7 @@ class MetricCalculator:
         return scores
 
     def _get_no_reference_metric(self, metric_name):
-        # NIQE and BRISQUE are loaded only for unpaired evaluation.
-        # This avoids loading their external models during training validation.
+        """Load NIQE or BRISQUE only when that metric is actually requested."""
         if metric_name not in self._no_reference_metrics:
             try:
                 import pyiqa
@@ -112,7 +111,7 @@ class MetricCalculator:
                     "Install it with: pip install pyiqa"
                 ) from error
 
-            # pyiqa expects RGB tensors with values in the [0, 1] range.
+            # pyiqa expects RGB image tensors with values in the [0, 1] range.
             self._no_reference_metrics[metric_name] = pyiqa.create_metric(
                 metric_name.lower(),
                 device=self.no_reference_device,
@@ -120,8 +119,8 @@ class MetricCalculator:
         return self._no_reference_metrics[metric_name]
 
     def _select_no_reference_device(self):
-        # NIQE uses float64 internally, which is not supported by Apple MPS.
-        # The model can still run on MPS while these metrics are computed on CPU.
+        """NIQE uses float64 internally, which is not supported by Apple MPS.
+        The model may run on MPS, while no-reference metrics fall back to CPU. """
         if self.device.type == "mps":
             return torch.device("cpu")
         return self.device

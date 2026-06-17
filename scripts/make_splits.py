@@ -1,8 +1,6 @@
 from pathlib import Path
 import sys
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.preprocessing.split import (
@@ -10,17 +8,18 @@ from src.preprocessing.split import (
     create_train_val_split,
     save_split_file,
 )
+from src.utils import load_config
 
 
 def main():
-    with Path("configs/config.yaml").open() as config_file:
-        config = yaml.safe_load(config_file)
+    # Split generation reads the same configuration used by training and evaluation.
+    config = load_config("configs/config.yaml")
 
     data_config = config["data"]
     low_dir = Path(data_config["raw_dir"]) / "LOL-v2" / "Real_captured" / "Train" / "Low"
     sample_ids = sorted(path.stem.removeprefix("low") for path in low_dir.glob("*.png"))
 
-    # LOL-v2 does not provide a validation set, so we create one from its training images.
+    # LOL-v2 does not provide a validation set, so we create one deterministically.
     train_ids, val_ids = create_train_val_split(
         sample_ids,
         val_fraction=data_config["val_fraction"],
@@ -32,7 +31,7 @@ def main():
     save_split_file(val_ids, splits_dir / "lolv2_real_val.txt")
     print(f"Created LOL-v2 Real Captured splits: {len(train_ids)} train, {len(val_ids)} val")
 
-    # ExDark is large, so we keep a small balanced subset for the evaluation.
+    # ExDark is reduced to a balanced subset, with the same count per category.
     exdark_dir = Path(data_config["raw_dir"]) / "ExDark_dataset"
     samples_by_category = {
         category_dir.name: [

@@ -6,6 +6,7 @@ class L1Loss(nn.Module):
 
     def __init__(self):
         super().__init__()
+        # Use torch's L1
         self.loss = nn.L1Loss()
 
     def forward(self, prediction, target):

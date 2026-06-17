@@ -4,14 +4,16 @@ import copy
 import sys
 
 import torch
-import yaml
-from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.eval import build_test_datasets, load_model
-from scripts.train import select_device
-from scripts.visualize_results import tensor_to_image
+from src.utils import (
+    build_test_datasets,
+    load_config,
+    load_model,
+    save_horizontal_panel,
+    select_device,
+)
 
 
 MODEL_NAME_BY_RUN = {
@@ -22,8 +24,8 @@ MODEL_NAME_BY_RUN = {
 
 def main():
     args = parse_args()
-    with Path(args.config).open() as config_file:
-        base_config = yaml.safe_load(config_file)
+    # This script compares multiple trained runs on the same test images.
+    base_config = load_config(args.config)
 
     device = select_device()
     print(f"Using device: {device}")
@@ -83,6 +85,7 @@ def parse_args():
 
 
 def discover_runs(outputs_dir, requested_runs=None):
+    """Find output folders that contain a trained checkpoint."""
     if requested_runs:
         runs = [outputs_dir / run_name for run_name in requested_runs]
     else:
@@ -101,6 +104,7 @@ def discover_runs(outputs_dir, requested_runs=None):
 
 
 def load_run_models(base_config, runs, device):
+    """Load each run with the model type inferred from its folder name."""
     models = []
     for run_dir in runs:
         run_config = build_run_config(base_config, run_dir)
@@ -116,6 +120,7 @@ def load_run_models(base_config, runs, device):
 
 
 def build_run_config(base_config, run_dir):
+    """Copy the base config and adapt it to the selected run."""
     config = copy.deepcopy(base_config)
     config["experiment"]["name"] = run_dir.name
     config["model"]["name"] = infer_model_name(run_dir.name, config["model"]["name"])
@@ -123,6 +128,7 @@ def build_run_config(base_config, run_dir):
 
 
 def infer_model_name(run_name, fallback_model_name):
+    """Infer the architecture name from the run folder when possible."""
     normalized_run_name = run_name.lower()
     if normalized_run_name in MODEL_NAME_BY_RUN:
         return MODEL_NAME_BY_RUN[normalized_run_name]
@@ -134,6 +140,7 @@ def infer_model_name(run_name, fallback_model_name):
 
 
 def format_run_label(run_name):
+    """Convert a run folder name into a readable figure label."""
     return run_name.replace("_", " ").title()
 
 
@@ -141,6 +148,7 @@ def save_paired_comparisons(models, dataset, output_dir, device, max_examples=No
     output_dir.mkdir(parents=True, exist_ok=True)
     limit = resolve_limit(dataset, max_examples)
 
+    # Each row contains the input, all model predictions, and the ground truth.
     with torch.inference_mode():
         for index in range(limit):
             sample = dataset[index]
@@ -150,7 +158,12 @@ def save_paired_comparisons(models, dataset, output_dir, device, max_examples=No
                 prediction = model(sample["low"].unsqueeze(0).to(device)).squeeze(0)
                 panels.append((label, prediction))
             panels.append(("GROUND TRUTH", sample["high"]))
-            save_figure(panels, output_dir / f"{index:03d}.png")
+            save_horizontal_panel(
+                panels,
+                output_dir / f"{index:03d}.png",
+                label_height=30,
+                label_y=8,
+            )
 
     print(f"Saved paired comparison figures to {output_dir}")
 
@@ -159,6 +172,7 @@ def save_unpaired_comparisons(models, dataset, output_dir, device, max_examples=
     output_dir.mkdir(parents=True, exist_ok=True)
     limit = resolve_limit(dataset, max_examples)
 
+    # For ExDark we compare model predictions without a ground truth panel.
     with torch.inference_mode():
         for index in range(limit):
             sample = dataset[index]
@@ -168,36 +182,21 @@ def save_unpaired_comparisons(models, dataset, output_dir, device, max_examples=
                 prediction = model(sample["image"].unsqueeze(0).to(device)).squeeze(0)
                 panels.append((label, prediction))
             category = sample["category"].lower()
-            save_figure(panels, output_dir / f"{index:03d}_{category}.png")
+            save_horizontal_panel(
+                panels,
+                output_dir / f"{index:03d}_{category}.png",
+                label_height=30,
+                label_y=8,
+            )
 
     print(f"Saved unpaired comparison figures to {output_dir}")
 
 
 def resolve_limit(dataset, max_examples):
+    """Use all samples unless the user asks for a smaller subset."""
     if max_examples is None:
         return len(dataset)
     return min(len(dataset), max_examples)
-
-
-def save_figure(panels, path):
-    images = [(label, tensor_to_image(tensor)) for label, tensor in panels]
-    label_height = 30
-    panel_width = images[0][1].width
-    panel_height = images[0][1].height
-    figure = Image.new(
-        "RGB",
-        (panel_width * len(images), panel_height + label_height),
-        color="white",
-    )
-    draw = ImageDraw.Draw(figure)
-
-    for index, (label, image) in enumerate(images):
-        left = index * panel_width
-        figure.paste(image, (left, label_height))
-        draw.text((left + 8, 8), label, fill="black")
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    figure.save(path)
 
 
 if __name__ == "__main__":

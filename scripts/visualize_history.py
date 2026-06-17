@@ -1,17 +1,16 @@
 from pathlib import Path
 import argparse
-import json
 import sys
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from src.utils import load_config, load_json
 
 
 def main():
     args = parse_args()
-    with Path(args.config).open() as config_file:
-        config = yaml.safe_load(config_file)
+    # The experiment name decides the default history and output paths.
+    config = load_config(args.config)
 
     experiment_name = config["experiment"]["name"]
     history_path = (
@@ -43,13 +42,12 @@ def parse_args():
 
 
 def load_history(path):
-    path = Path(path)
-    if not path.is_file():
-        raise FileNotFoundError(f"History file not found: {path}")
-    return json.loads(path.read_text())
+    """Load the training history saved by the training script."""
+    return load_json(path)
 
 
 def plot_loss(history, path):
+    """Plot train and validation loss on the same figure."""
     pyplot = import_pyplot()
     epochs = get_epochs(history)
     train_loss = get_values(history, "train_loss")
@@ -69,6 +67,7 @@ def plot_loss(history, path):
 
 
 def plot_metric(history, key, title, ylabel, path):
+    """Plot one validation metric across epochs."""
     pyplot = import_pyplot()
     epochs = get_epochs(history)
     values = get_values(history, key)
@@ -85,10 +84,12 @@ def plot_metric(history, key, title, ylabel, path):
 
 
 def get_epochs(history):
+    """Read epoch numbers from the saved history entries."""
     return [entry["epoch"] for entry in history]
 
 
 def get_values(history, key):
+    """Read a metric from every epoch and fail if it is missing."""
     missing_epochs = [entry["epoch"] for entry in history if key not in entry]
     if missing_epochs:
         raise KeyError(f"Missing {key} in epochs: {missing_epochs}")

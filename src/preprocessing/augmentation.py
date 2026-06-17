@@ -31,6 +31,7 @@ class PairedTrainTransform:
         max_offset = self.resize_size - self.image_size
         left = random.randint(0, max_offset)
         top = random.randint(0, max_offset)
+        # Defines a box crop
         box = (left, top, left + self.image_size, top + self.image_size)
         low_image = low_image.crop(box)
         high_image = high_image.crop(box)

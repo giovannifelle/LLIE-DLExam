@@ -12,7 +12,9 @@ class ResidualBlock(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
         )
+        # Prepare the residual path so it can be added to the main convolutional output.
         self.projection = (
+            # If the channel size is already correct, keep the residual unchanged; otherwise adapt it with a 1x1 convolution.
             nn.Identity()
             if in_channels == out_channels
             else nn.Conv2d(in_channels, out_channels, kernel_size=1)
@@ -49,6 +51,7 @@ class ResidualUpBlock(nn.Module):
 
     def forward(self, x, skip):
         x = self.upsample(x)
+        # Skip connection
         x = torch.cat((skip, x), dim=1)
         return self.residual(x)
 

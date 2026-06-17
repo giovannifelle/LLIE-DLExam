@@ -1,11 +1,7 @@
 from pathlib import Path
-import json
-import random
 import sys
 
-import numpy as np
 import torch
-import yaml
 from torch.utils.data import DataLoader
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -13,15 +9,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.datasets import LOLv2Dataset
 from src.evaluation import Evaluator, MetricCalculator
 from src.losses import CombinedLoss
-from src.models import ResidualUNet, UNet
 from src.preprocessing import build_transforms
 from src.training import Trainer
+from src.utils import (
+    build_dataloader_generator,
+    build_model,
+    load_config,
+    save_json,
+    seed_worker,
+    select_device,
+    set_seed,
+)
 
 
 def main():
-    with Path("configs/config.yaml").open() as config_file:
-        config = yaml.safe_load(config_file)
+    # The training script is driven by the central YAML configuration.
+    config = load_config("configs/config.yaml")
 
+    # Fix all random sources before creating datasets, loaders, and the model.
     seed = config["experiment"]["seed"]
     set_seed(seed)
     dataloader_generator = build_dataloader_generator(seed)
@@ -33,7 +38,7 @@ def main():
     raw_dir = Path(data_config["raw_dir"])
     splits_dir = Path(data_config["splits_dir"])
 
-    # Both datasets use the same LOL-v2 source directory but different split files.
+    # Training and validation both come from LOL-v2, but use different split files.
     train_dataset = LOLv2Dataset(
         root=raw_dir / "LOL-v2",
         split="train",
@@ -65,6 +70,7 @@ def main():
     )
     print(f"Dataset sizes: {len(train_dataset)} train, {len(val_dataset)} val")
 
+    # Model, loss, and optimizer are built from the same config for every run.
     model = build_model(config)
     loss_function = CombinedLoss(
         l1_weight=config["loss"]["l1_weight"],
@@ -83,6 +89,7 @@ def main():
         loss_function=loss_function,
     )
 
+    # The Trainer handles epochs, checkpoints, and early stopping.
     output_dir = Path("outputs") / config["experiment"]["name"]
     trainer = Trainer(
         model=model,
@@ -100,67 +107,8 @@ def main():
     save_history(history, output_dir / "history.json")
 
 
-def set_seed(seed):
-    """Set random seeds used by Python, NumPy, and PyTorch."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-
-    try:
-        torch.use_deterministic_algorithms(True)
-    except RuntimeError as error:
-        print(f"Warning: deterministic algorithms could not be enabled: {error}")
-
-
-def seed_worker(worker_id):
-    """Seed each DataLoader worker from PyTorch's worker-specific seed."""
-    worker_seed = torch.initial_seed() % 2**32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
-
-
-def build_dataloader_generator(seed):
-    generator = torch.Generator()
-    generator.manual_seed(seed)
-    return generator
-
-
-def select_device():
-    """Prefer Apple Silicon, then CUDA, and finally CPU."""
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
-
-
-def build_model(config):
-    model_config = config["model"]
-    model_name = model_config["name"]
-    print(f"Using model: {model_name}")
-
-    if model_name == "UNet":
-        return UNet(
-            in_channels=model_config["in_channels"],
-            out_channels=model_config["out_channels"],
-            base_features=model_config["base_features"],
-        )
-
-    if model_name == "ResidualUNet":
-        return ResidualUNet(
-            in_channels=model_config["in_channels"],
-            out_channels=model_config["out_channels"],
-            base_features=model_config["base_features"],
-        )
-
-    raise ValueError(f"Unsupported model: {model_name}")
-
-
 def build_optimizer(config, model):
+    """Build the optimizer used by the training loop."""
     training_config = config["training"]
     if training_config["optimizer"] != "AdamW":
         raise ValueError(f"Unsupported optimizer: {training_config['optimizer']}")
@@ -174,8 +122,7 @@ def build_optimizer(config, model):
 
 def save_history(history, path):
     """Save validation results to make the experiment easier to reproduce."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(history, indent=2))
+    save_json(history, path)
     print(f"Training history saved to {path}")
 
 

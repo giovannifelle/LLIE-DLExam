@@ -32,9 +32,11 @@ class SSIMLoss(nn.Module):
         ) * (prediction_variance + target_variance + self.c2)
 
         ssim = numerator / denominator
+        # Convert mean SSIM to a loss value (0 = identical images, 1 = maximum difference)
         return 1 - torch.clamp(ssim.mean(), 0.0, 1.0)
 
     def _local_average(self, image):
+        """Compute the local mean of the image using average pooling over a sliding window."""
         return F.avg_pool2d(
             image,
             kernel_size=self.window_size,

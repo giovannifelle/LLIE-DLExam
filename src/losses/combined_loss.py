@@ -24,6 +24,7 @@ class CombinedLoss(nn.Module):
         components = {"l1": l1, "ssim": ssim}
 
         if self.color_weight > 0:
+            # Adding color constancy loss as a color cast mitigation
             color = self.color_loss(prediction, target)
             total = total + self.color_weight * color
             components["color"] = color

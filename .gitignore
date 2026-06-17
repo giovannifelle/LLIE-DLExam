@@ -6,11 +6,12 @@ data/splits/
 outputs/
 
 
-reports/
-#!reports/*.tex
-#!reports/*.pdf
-#!reports/images/
-#!reports/images/*
+reports/*
+
+!reports/*.tex
+!reports/*.pdf
+!reports/images/
+!reports/images/*
 
 
 .local/

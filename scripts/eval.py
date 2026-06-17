@@ -1,31 +1,31 @@
 from pathlib import Path
 import argparse
-import json
 import sys
 
-import torch
-import yaml
 from torch.utils.data import DataLoader
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.train import (
+from src.evaluation import Evaluator, MetricCalculator
+from src.utils import (
     build_dataloader_generator,
-    build_model,
+    build_test_datasets,
+    load_config,
+    load_model,
+    resolve_checkpoint_path,
+    save_json,
     seed_worker,
     select_device,
     set_seed,
 )
-from src.datasets import ExDarkDataset, LOLv1Dataset, LOLv2Dataset
-from src.evaluation import Evaluator, MetricCalculator
-from src.preprocessing import build_transforms
 
 
 def main():
     args = parse_args()
-    with Path(args.config).open() as config_file:
-        config = yaml.safe_load(config_file)
+    # Evaluation can reuse the default config or a config passed from the command line.
+    config = load_config(args.config)
 
+    # The same seed/device utilities are used here to keep execution consistent.
     seed = config["experiment"]["seed"]
     set_seed(seed)
     dataloader_generator = build_dataloader_generator(seed)
@@ -33,6 +33,8 @@ def main():
     print(f"Using device: {device}")
     checkpoint_path = resolve_checkpoint_path(config, args.checkpoint)
     model = load_model(config, checkpoint_path, device)
+
+    # These are the three final datasets used in the report.
     datasets = build_test_datasets(config)
     output_dir = (
         Path(args.output_dir)
@@ -48,6 +50,7 @@ def main():
     }
 
     for name, (dataset, metric_names, is_paired) in evaluation_protocols.items():
+        # A fresh evaluator is created because each dataset uses different metrics.
         print(f"Dataset root: {dataset.root}")
         if hasattr(dataset, "data_dir"):
             print(f"Dataset data directory: {dataset.data_dir}")
@@ -82,50 +85,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def resolve_checkpoint_path(config, checkpoint_path):
-    if checkpoint_path:
-        return Path(checkpoint_path)
-    return Path("outputs") / config["experiment"]["name"] / "best_model.pt"
-
-
-def load_model(config, checkpoint_path, device):
-    """Load the best model weights saved during training."""
-    model = build_model(config)
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model.to(device)
-    model.eval()
-    return model
-
-
-def build_test_datasets(config):
-    """Create the three datasets used to freeze the baseline results."""
-    data_config = config["data"]
-    raw_dir = Path(data_config["raw_dir"])
-    splits_dir = Path(data_config["splits_dir"])
-    transforms = build_transforms(config)
-
-    return {
-        "lolv2_test": LOLv2Dataset(
-            root=raw_dir / "LOL-v2",
-            split="test",
-            transform=transforms["paired_test"],
-        ),
-        "lolv1_eval15": LOLv1Dataset(
-            root=raw_dir / "lol_dataset",
-            transform=transforms["paired_test"],
-        ),
-        "exdark": ExDarkDataset(
-            root=raw_dir / "ExDark_dataset",
-            transform=transforms["unpaired_test"],
-            split_file=splits_dir / "ex_dark_split.txt",
-        ),
-    }
-
-
 def save_metrics(results, path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(results, indent=2))
+    """Save one JSON file for each evaluated dataset."""
+    save_json(results, path)
     print(f"Metrics saved to {path}")
 
 

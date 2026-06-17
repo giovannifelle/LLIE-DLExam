@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="360" viewBox="0 0 920 360">
+  <defs>
+    <style>
+      .title { font: 700 28px sans-serif; fill: #172033; }
+      .subtitle { font: 15px sans-serif; fill: #485166; }
+      .label { font: 700 16px sans-serif; fill: #172033; }
+      .small { font: 13px sans-serif; fill: #485166; }
+      .box { fill: #ffffff; stroke: #23324d; stroke-width: 2; rx: 8; ry: 8; }
+      .sum { fill: #eadff8; stroke: #23324d; stroke-width: 2; }
+      .arrow { stroke: #26344f; stroke-width: 2.4; fill: none; marker-end: url(#arrowhead); }
+      .residual { stroke: #8a3ffc; stroke-width: 2.5; fill: none; stroke-dasharray: 7 6; marker-end: url(#reshead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#26344f"/>
+    </marker>
+    <marker id="reshead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#8a3ffc"/>
+    </marker>
+  </defs>
+
+  <rect width="920" height="360" fill="#ffffff"/>
+  <text x="50" y="54" class="title">ResidualBlock</text>
+  <text x="50" y="82" class="subtitle">Two 3x3 convolutions with a residual shortcut. A 1x1 projection is used only when the channel count changes.</text>
+
+  <rect x="55" y="150" width="95" height="58" class="box"/>
+  <text x="82" y="174" class="label">Input</text>
+  <text x="76" y="195" class="small">features</text>
+
+  <rect x="210" y="145" width="120" height="68" class="box"/>
+  <text x="239" y="173" class="label">Conv 3x3</text>
+  <text x="242" y="196" class="small">in -> out</text>
+
+  <rect x="385" y="145" width="100" height="68" class="box"/>
+  <text x="414" y="184" class="label">ReLU</text>
+
+  <rect x="545" y="145" width="120" height="68" class="box"/>
+  <text x="574" y="173" class="label">Conv 3x3</text>
+  <text x="578" y="196" class="small">out -> out</text>
+
+  <circle cx="735" cy="179" r="28" class="sum"/>
+  <text x="725" y="185" class="label">+</text>
+
+  <rect x="805" y="145" width="100" height="68" class="box"/>
+  <text x="834" y="184" class="label">ReLU</text>
+
+  <path class="arrow" d="M150 179 H210"/>
+  <path class="arrow" d="M330 179 H385"/>
+  <path class="arrow" d="M485 179 H545"/>
+  <path class="arrow" d="M665 179 H707"/>
+  <path class="arrow" d="M763 179 H805"/>
+
+  <path class="residual" d="M150 179 C245 282 610 282 735 207"/>
+  <text x="315" y="288" class="small" fill="#8a3ffc">Identity shortcut, or Conv 1x1 projection if channels differ</text>
+
+  <text x="52" y="315" class="small">Implemented as: ReLU(Conv3x3(ReLU(Conv3x3(x))) + projection(x))</text>
+</svg>

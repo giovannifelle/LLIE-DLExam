@@ -44,6 +44,7 @@ class UpBlock(nn.Module):
 
     def forward(self, x, skip):
         x = self.upsample(x)
+        # Skip connection
         x = torch.cat((skip, x), dim=1)
         return self.convolution(x)
 

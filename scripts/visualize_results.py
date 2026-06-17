@@ -3,19 +3,23 @@ import argparse
 import sys
 
 import torch
-import yaml
-from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.eval import build_test_datasets, load_model, resolve_checkpoint_path
-from scripts.train import select_device
+from src.utils import (
+    build_test_datasets,
+    load_config,
+    load_model,
+    resolve_checkpoint_path,
+    save_horizontal_panel,
+    select_device,
+)
 
 
 def main():
     args = parse_args()
-    with Path(args.config).open() as config_file:
-        config = yaml.safe_load(config_file)
+    # Qualitative figures use the same checkpoint and datasets as quantitative evaluation.
+    config = load_config(args.config)
 
     device = select_device()
     print(f"Using device: {device}")
@@ -64,6 +68,7 @@ def save_paired_figures(model, dataset, output_dir, device):
     output_dir.mkdir(parents=True, exist_ok=True)
     model.eval()
 
+    # Paired datasets allow direct visual comparison with the ground truth.
     with torch.inference_mode():
         for index in range(len(dataset)):
             sample = dataset[index]
@@ -73,7 +78,7 @@ def save_paired_figures(model, dataset, output_dir, device):
                 ("PREDICTION", prediction),
                 ("GROUND TRUTH", sample["high"]),
             ]
-            save_figure(panels, output_dir / f"{index:03d}.png")
+            save_horizontal_panel(panels, output_dir / f"{index:03d}.png")
 
     print(f"Saved paired figures to {output_dir}")
 
@@ -83,6 +88,7 @@ def save_unpaired_figures(model, dataset, output_dir, device):
     output_dir.mkdir(parents=True, exist_ok=True)
     model.eval()
 
+    # ExDark has no target image, so only input and prediction are shown.
     with torch.inference_mode():
         for index in range(len(dataset)):
             sample = dataset[index]
@@ -92,38 +98,9 @@ def save_unpaired_figures(model, dataset, output_dir, device):
                 ("PREDICTION", prediction),
             ]
             category = sample["category"].lower()
-            save_figure(panels, output_dir / f"{index:03d}_{category}.png")
+            save_horizontal_panel(panels, output_dir / f"{index:03d}_{category}.png")
 
     print(f"Saved unpaired figures to {output_dir}")
-
-
-def save_figure(panels, path):
-    """Create one labeled horizontal image that is easy to include in the report."""
-    images = [(label, tensor_to_image(tensor)) for label, tensor in panels]
-    label_height = 28
-    panel_width = images[0][1].width
-    panel_height = images[0][1].height
-    figure = Image.new(
-        "RGB",
-        (panel_width * len(images), panel_height + label_height),
-        color="white",
-    )
-    draw = ImageDraw.Draw(figure)
-
-    for index, (label, image) in enumerate(images):
-        left = index * panel_width
-        figure.paste(image, (left, label_height))
-        draw.text((left + 8, 7), label, fill="black")
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    figure.save(path)
-
-
-def tensor_to_image(tensor):
-    """Convert a normalized PyTorch tensor back to a Pillow RGB image."""
-    tensor = tensor.detach().cpu().clamp(0.0, 1.0)
-    array = (tensor.permute(1, 2, 0).numpy() * 255).round().astype("uint8")
-    return Image.fromarray(array)
 
 
 if __name__ == "__main__":
